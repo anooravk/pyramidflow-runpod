@@ -27,3 +27,9 @@ tensorboardX
 ipython
 wheel
 torch
+uuid
+requests==2.31.0
+Pillow>=9.0.0
+huggingface_hub>=0.16.4
+pyramid_dit  
+diffusers>=0.23.0
