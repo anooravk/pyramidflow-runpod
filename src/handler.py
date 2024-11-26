@@ -3,7 +3,6 @@ import os
 import time
 import requests
 import runpod
-import shutils
 import os
 import torch
 from PIL import Image, ImageOps
