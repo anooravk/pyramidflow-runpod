@@ -206,11 +206,26 @@ class PyramidDiTForVideoGeneration:
         return latents
 
     def sample_block_noise(self, bs, ch, temp, height, width):
-        gamma = self.scheduler.config.gamma
-        dist = torch.distributions.multivariate_normal.MultivariateNormal(torch.zeros(4), torch.eye(4) * (1 + gamma) - torch.ones(4, 4) * gamma)
+        gamma = self.scheduler.config.gamma  # gamma = 0.33333333
+        epsilon = 1e-6  # Small value to ensure positive definiteness
+        covariance_matrix = (
+            torch.eye(4) * (1 + gamma + epsilon) - torch.ones(4, 4) * gamma
+        )
+        # Ensure the covariance matrix is symmetric
+        covariance_matrix = (covariance_matrix + covariance_matrix.T) / 2
+        # Compute the Cholesky decomposition
+        try:
+            scale_tril = torch.linalg.cholesky(covariance_matrix)
+        except RuntimeError as e:
+            print("Cholesky decomposition failed:", e)
+            return None
+        dist = torch.distributions.MultivariateNormal(
+            torch.zeros(4), scale_tril=scale_tril
+        )
         block_number = bs * ch * temp * (height // 2) * (width // 2)
-        noise = torch.stack([dist.sample() for _ in range(block_number)]) # [block number, 4]
-        noise = rearrange(noise, '(b c t h w) (p q) -> b c t (h p) (w q)',b=bs,c=ch,t=temp,h=height//2,w=width//2,p=2,q=2)
+        noise = dist.sample((block_number,))  # [block_number, 4]
+        noise = noise.view(bs, ch, temp, height // 2, width // 2, 2, 2)
+        noise = noise.permute(0, 1, 2, 3, 5, 4, 6).reshape(bs, ch, temp, height, width)
         return noise
 
     @torch.no_grad()
